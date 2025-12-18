@@ -4,6 +4,8 @@ A complete end-to-end notification system implementation demonstrating **Golang*
 
 This project showcases how to handle **User ID based targeting**, separating the business logic (User IDs) from the technical implementation (FCM Tokens).
 
+[![YouTube Demo](https://raw.githubusercontent.com/CreatorB/go-flutter-firebase-notif/refs/heads/main/go-flutter-firebase-notif-creatorbe-creatorb.png)](https://youtu.be/6us-dEgl0iw)
+
 ## ⚡ Golang Crash Course (For Developers)
 
 If you are coming from Node.js, PHP, or Python, here is a quick overview of Go.
