@@ -31,6 +31,7 @@ Since you are using Windows/macOS:
 1.  **Download:** Visit [go.dev/dl](https://go.dev/dl/) and download the installer (MSI for Windows, PKG for macOS).
 2.  **Install:** Click Next until finished. Environment variables are usually set automatically.
 3.  **Verify:** Open a new Terminal/CMD and type:
+
     ```bash
     go version
     ```
@@ -191,17 +192,22 @@ class TestFcmPage extends StatefulWidget {
 
 class _TestFcmPageState extends State<TestFcmPage> {
   // Input Controllers
-  final _ipController = TextEditingController(text: "192.168.50.100:8081"); // Ganti IP Localhost
+  final _ipController = TextEditingController(
+    text: "192.168.50.100:8081",
+  ); // Ganti IP Localhost
   final _myUserIdController = TextEditingController(text: "user_1"); // ID Saya
-  
-  final _targetUserIdController = TextEditingController(text: "user_2"); // ID Target
+
+  final _targetUserIdController = TextEditingController(
+    text: "user_2",
+  ); // ID Target
   final _titleController = TextEditingController(text: "Halo");
   final _bodyController = TextEditingController(text: "Apa kabar?");
 
   String _statusLog = "Siap...";
   bool _isConnected = false;
 
-  void _addLog(String log) => setState(() => _statusLog = "$log\n---\n$_statusLog");
+  void _addLog(String log) =>
+      setState(() => _statusLog = "$log\n---\n$_statusLog");
 
   // 1. REGISTER SEBAGAI USER ID TERTENTU
   Future<void> _connectAsUser() async {
@@ -212,12 +218,18 @@ class _TestFcmPageState extends State<TestFcmPage> {
 
     try {
       _addLog("⏳ Registering as '$myId'...");
-      
+
       // Ambil Token
       FirebaseMessaging messaging = FirebaseMessaging.instance;
       await messaging.requestPermission();
+
+      // Subscribe ke topic "promo" dan "news"
+      await messaging.subscribeToTopic("news");
+      _addLog("✅ Subscribed to Topic: news");
+      // ----------------------------------------
+
       String? token = await messaging.getToken();
-      
+
       if (token == null) {
         _addLog("❌ Gagal dapat token");
         return;
@@ -226,10 +238,7 @@ class _TestFcmPageState extends State<TestFcmPage> {
       // Kirim ke Go: "Hei Server, Token ABC ini milik user_1 ya!"
       final res = await http.post(
         Uri.parse("http://$ip/register"),
-        body: jsonEncode({
-          "user_id": myId,
-          "token": token
-        }),
+        body: jsonEncode({"user_id": myId, "token": token}),
       );
 
       if (res.statusCode == 200) {
@@ -261,7 +270,7 @@ class _TestFcmPageState extends State<TestFcmPage> {
         body: jsonEncode({
           "target_user_id": targetId, // Kita kirim ID, bukan Token
           "title": _titleController.text,
-          "body": _bodyController.text
+          "body": _bodyController.text,
         }),
       );
 
@@ -269,6 +278,37 @@ class _TestFcmPageState extends State<TestFcmPage> {
         _addLog("✅ Terkirim ke $targetId!");
       } else if (res.statusCode == 404) {
         _addLog("⚠️ User '$targetId' tidak ditemukan/belum login di server.");
+      } else {
+        _addLog("❌ Gagal: ${res.body}");
+      }
+    } catch (e) {
+      _addLog("❌ Error: $e");
+    }
+  }
+
+  // 3. KIRIM BROADCAST (Simulasi Admin)
+  Future<void> _sendBroadcast() async {
+    if (!_isConnected) {
+      _addLog("⚠️ Login dulu untuk set IP server.");
+      return;
+    }
+    
+    String ip = _ipController.text.trim();
+
+    try {
+      _addLog("📢 Mengirim Broadcast ke topic 'promo'...");
+
+      final res = await http.post(
+        Uri.parse("http://$ip/broadcast"),
+        body: jsonEncode({
+          "topic": "news", // Topic target
+          "title": "⚡ DISKON FLASH SALE!",
+          "body": "Semua user dapat diskon 50% sekarang juga!"
+        }),
+      );
+
+      if (res.statusCode == 200) {
+        _addLog("✅ Broadcast Sukses!");
       } else {
         _addLog("❌ Gagal: ${res.body}");
       }
@@ -287,50 +327,99 @@ class _TestFcmPageState extends State<TestFcmPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // SETUP
-            const Text("1. Setup & Login", style: TextStyle(fontWeight: FontWeight.bold)),
-            TextField(controller: _ipController, decoration: const InputDecoration(labelText: "IP Server Go")),
+            const Text(
+              "1. Setup & Login",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            TextField(
+              controller: _ipController,
+              decoration: const InputDecoration(labelText: "IP Server Go"),
+            ),
             Row(
               children: [
-                Expanded(child: TextField(controller: _myUserIdController, decoration: const InputDecoration(labelText: "Login Sebagai User ID"))),
+                Expanded(
+                  child: TextField(
+                    controller: _myUserIdController,
+                    decoration: const InputDecoration(
+                      labelText: "Login Sebagai User ID",
+                    ),
+                  ),
+                ),
                 const SizedBox(width: 10),
-                ElevatedButton(onPressed: _connectAsUser, child: const Text("LOGIN")),
+                ElevatedButton(
+                  onPressed: _connectAsUser,
+                  child: const Text("LOGIN"),
+                ),
               ],
             ),
             const Divider(),
 
             // ACTION
-            const Text("2. Kirim ke User Lain", style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text(
+              "2. Kirim ke User Lain",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             TextField(
-              controller: _targetUserIdController, 
+              controller: _targetUserIdController,
               decoration: const InputDecoration(
-                labelText: "User ID Tujuan (Target)", 
+                labelText: "User ID Tujuan (Target)",
                 border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.person)
-              )
+                prefixIcon: Icon(Icons.person),
+              ),
             ),
             const SizedBox(height: 10),
-            TextField(controller: _titleController, decoration: const InputDecoration(labelText: "Judul")),
-            TextField(controller: _bodyController, decoration: const InputDecoration(labelText: "Pesan")),
+            TextField(
+              controller: _titleController,
+              decoration: const InputDecoration(labelText: "Judul"),
+            ),
+            TextField(
+              controller: _bodyController,
+              decoration: const InputDecoration(labelText: "Pesan"),
+            ),
             const SizedBox(height: 10),
-            
+
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: _sendToUser,
                 icon: const Icon(Icons.send),
                 label: const Text("KIRIM BY ID"),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.indigo,
+                  foregroundColor: Colors.white,
+                ),
               ),
             ),
-            
+
             const Divider(),
+            const Text(
+              "3. ADMIN AREA: Broadcast",
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+            ),
+
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _sendBroadcast, // Fungsi ada di bawah
+                icon: const Icon(Icons.campaign), // Ikon toa/speaker
+                label: const Text("KIRIM BROADCAST (SEMUA USER)"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.redAccent,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ),
+
+            const Divider(),
+
             Container(
               height: 200,
               width: double.infinity,
               color: Colors.grey[200],
               padding: const EdgeInsets.all(8),
               child: SingleChildScrollView(child: Text(_statusLog)),
-            )
+            ),
           ],
         ),
       ),
