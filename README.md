@@ -158,11 +158,9 @@ go get [github.com/gin-gonic/gin](https://github.com/gin-gonic/gin)
 
 ```
 
-**Code: `main.go**`
+**Code: `main.go`**
 
-```go
-check in `main.go`
-```
+check in [main.go](https://github.com/CreatorB/go-flutter-firebase-notif/blob/main/main.go)
 
 ---
 
@@ -174,7 +172,7 @@ check in `main.go`
 2. Add permissions in `AndroidManifest.xml` (Internet & Post Notifications).
 3. Add dependencies: `firebase_core`, `firebase_messaging`, `http`.
 
-**Code: `test_fcm_page.dart**`
+**Code: `test_fcm_page.dart`**
 A dedicated page to test the connection and send messages.
 
 ```dart
@@ -192,22 +190,46 @@ class TestFcmPage extends StatefulWidget {
 
 class _TestFcmPageState extends State<TestFcmPage> {
   // Input Controllers
-  final _ipController = TextEditingController(
-    text: "192.168.50.100:8081",
-  ); // Ganti IP Localhost
+  // Ganti IP ini dengan IP localhost
+  final _ipController = TextEditingController(text: "192.168.50.100:8081");
+  
   final _myUserIdController = TextEditingController(text: "user_1"); // ID Saya
-
-  final _targetUserIdController = TextEditingController(
-    text: "user_2",
-  ); // ID Target
+  final _targetUserIdController = TextEditingController(text: "user_2"); // ID Target
   final _titleController = TextEditingController(text: "Halo");
   final _bodyController = TextEditingController(text: "Apa kabar?");
 
+  // State Variables
   String _statusLog = "Siap...";
   bool _isConnected = false;
+  String? _myToken;
 
-  void _addLog(String log) =>
-      setState(() => _statusLog = "$log\n---\n$_statusLog");
+  // Fungsi helper untuk Log
+  void _addLog(String log) {
+    if (!mounted) return;
+    setState(() => _statusLog = "$log\n---\n$_statusLog");
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // 1. SETUP LISTENER REFRESH
+    // Fungsi ini akan terpanggil otomatis JIKA token berubah sendiri
+    FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+      print("♻️ Token Ter-Refresh Otomatis!");
+      
+      // Update variabel lokal
+      if (mounted) {
+        setState(() => _myToken = newToken);
+      }
+      
+      // PENTING: Segera kirim token baru ini ke Backend Golang
+      // supaya database Backend tetap sinkron.
+      _updateTokenToBackend(newToken);
+    });
+  }
+
+  // --- FUNGSI LOGIKA ---
 
   // 1. REGISTER SEBAGAI USER ID TERTENTU
   Future<void> _connectAsUser() async {
@@ -219,14 +241,13 @@ class _TestFcmPageState extends State<TestFcmPage> {
     try {
       _addLog("⏳ Registering as '$myId'...");
 
-      // Ambil Token
+      // Ambil Token Firebase
       FirebaseMessaging messaging = FirebaseMessaging.instance;
       await messaging.requestPermission();
 
-      // Subscribe ke topic "promo" dan "news"
+      // Subscribe ke topic "news" (Opsional untuk broadcast)
       await messaging.subscribeToTopic("news");
       _addLog("✅ Subscribed to Topic: news");
-      // ----------------------------------------
 
       String? token = await messaging.getToken();
 
@@ -235,13 +256,19 @@ class _TestFcmPageState extends State<TestFcmPage> {
         return;
       }
 
-      // Kirim ke Go: "Hei Server, Token ABC ini milik user_1 ya!"
+      // Simpan token ke variabel lokal
+      setState(() {
+        _myToken = token;
+      });
+
+      // Kirim ke Backend Go
       final res = await http.post(
         Uri.parse("http://$ip/register"),
         body: jsonEncode({"user_id": myId, "token": token}),
       );
 
       if (res.statusCode == 200) {
+        if (!mounted) return;
         setState(() => _isConnected = true);
         _addLog("✅ Login Sukses sebagai: $myId");
       } else {
@@ -268,7 +295,7 @@ class _TestFcmPageState extends State<TestFcmPage> {
       final res = await http.post(
         Uri.parse("http://$ip/send-user"),
         body: jsonEncode({
-          "target_user_id": targetId, // Kita kirim ID, bukan Token
+          "target_user_id": targetId,
           "title": _titleController.text,
           "body": _bodyController.text,
         }),
@@ -296,7 +323,7 @@ class _TestFcmPageState extends State<TestFcmPage> {
     String ip = _ipController.text.trim();
 
     try {
-      _addLog("📢 Mengirim Broadcast ke topic 'promo'...");
+      _addLog("📢 Mengirim Broadcast ke topic 'news'...");
 
       final res = await http.post(
         Uri.parse("http://$ip/broadcast"),
@@ -317,6 +344,28 @@ class _TestFcmPageState extends State<TestFcmPage> {
     }
   }
 
+  // 4. UPDATE TOKEN SAAT REFRESH
+  Future<void> _updateTokenToBackend(String token) async {
+    String ip = _ipController.text.trim();
+    String myId = _myUserIdController.text.trim();
+    
+    if (ip.isEmpty || myId.isEmpty) return;
+
+    try {
+      await http.post(
+        Uri.parse("http://$ip/register"),
+        body: jsonEncode({
+          "user_id": myId,
+          "token": token
+        }),
+      );
+      print("✅ Token baru berhasil diupdate ke server");
+    } catch (e) {
+      print("❌ Gagal update token: $e");
+    }
+  }
+
+  // --- UI BUILD ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -333,8 +382,9 @@ class _TestFcmPageState extends State<TestFcmPage> {
             ),
             TextField(
               controller: _ipController,
-              decoration: const InputDecoration(labelText: "IP Server Go"),
+              decoration: const InputDecoration(labelText: "IP Server Go (ex: 192.168.1.5:8080)"),
             ),
+            const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
@@ -342,6 +392,7 @@ class _TestFcmPageState extends State<TestFcmPage> {
                     controller: _myUserIdController,
                     decoration: const InputDecoration(
                       labelText: "Login Sebagai User ID",
+                      border: OutlineInputBorder(),
                     ),
                   ),
                 ),
@@ -352,6 +403,14 @@ class _TestFcmPageState extends State<TestFcmPage> {
                 ),
               ],
             ),
+            
+            // Tampilkan Token Sendiri (Untuk Debug)
+            if (_myToken != null) 
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Text("Token Saya: ${_myToken!.substring(0, 15)}...", style: const TextStyle(fontSize: 10, color: Colors.grey)),
+              ),
+
             const Divider(),
 
             // ACTION
@@ -359,6 +418,7 @@ class _TestFcmPageState extends State<TestFcmPage> {
               "2. Kirim ke User Lain",
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
+            const SizedBox(height: 10),
             TextField(
               controller: _targetUserIdController,
               decoration: const InputDecoration(
@@ -401,8 +461,8 @@ class _TestFcmPageState extends State<TestFcmPage> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _sendBroadcast, // Fungsi ada di bawah
-                icon: const Icon(Icons.campaign), // Ikon toa/speaker
+                onPressed: _sendBroadcast,
+                icon: const Icon(Icons.campaign),
                 label: const Text("KIRIM BROADCAST (SEMUA USER)"),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.redAccent,
@@ -412,7 +472,7 @@ class _TestFcmPageState extends State<TestFcmPage> {
             ),
 
             const Divider(),
-
+            const Text("Log Aktivitas:"),
             Container(
               height: 200,
               width: double.infinity,
@@ -426,7 +486,6 @@ class _TestFcmPageState extends State<TestFcmPage> {
     );
   }
 }
-
 ```
 
 ---
@@ -434,26 +493,24 @@ class _TestFcmPageState extends State<TestFcmPage> {
 ## 🚀 How to Run
 
 1. **Start Backend:**
+
 ```bash
 cd go-flutter-firebase-notif
 go run main.go
-
 ```
 
 
 2. **Start Frontend:**
 Connect your physical Android device via USB.
+
 ```bash
 flutter run
-
 ```
 
 3. **Testing:**
 * Enter your Laptop's LAN IP in the App.
 * Click **Login**.
 * Enter a Target ID and click **Send**.
-
-```
 
 ## 🔌 API Documentation
 
@@ -464,7 +521,9 @@ Since the project is designed for demo purposes, you can test it using Postman o
 Used by the Flutter app to register the device token.
 
 * **URL:** `POST /register`
+
 * **Body:**
+
 ```json
 {
   "user_id": "john_doe",

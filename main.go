@@ -103,10 +103,24 @@ func main() {
 
 		// C. KIRIM
 		responseID, err := fcmClient.Send(context.Background(), message)
+		// --- PENANGANAN ERROR TOKEN EXPIRED ---
 		if err != nil {
+			// Cek apakah errornya karena token tidak valid
+			if messaging.IsRegistrationTokenNotRegistered(err) {
+				fmt.Printf("🗑️ Token untuk user %s sudah basi/unregistered. Menghapus dari DB...\n", req.TargetUserID)
+				
+				// HAPUS DARI MEMORI/DATABASE
+				delete(userTokens, req.TargetUserID)
+				
+				c.JSON(404, gin.H{"error": "Token expired/invalid, data dihapus. User perlu login ulang."})
+				return
+			}
+			
+			// Error lain (misal koneksi internet server mati)
 			c.JSON(500, gin.H{"error": err.Error()})
 			return
 		}
+		// -----------------------------------
 
 		fmt.Printf("🚀 Terkirim ke User: %s (MsgID: %s)\n", req.TargetUserID, responseID)
 		c.JSON(200, gin.H{"status": "sent", "target_user": req.TargetUserID})
