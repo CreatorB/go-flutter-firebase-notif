@@ -1,0 +1,34 @@
+# Binaries
+# File hasil build (exe/binary) tidak perlu diupload
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (biasanya tidak dicommit jika pakai Go Modules)
+vendor/
+
+# Go workspace file
+go.work
+
+# IDE / Editor specific
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# --- SECURITY ---
+# JANGAN PERNAH UPLOAD FILE INI KE GITHUB
+serviceAccountKey.json
+.env
